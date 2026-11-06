@@ -28,8 +28,8 @@ import torch
 from accelerate import PartialState
 from datasets import load_dataset
 from transformers import (
-    AutoModelForCausalLM,
-    AutoModelForSequenceClassification,
+    AutoModelForCausalLM, # actor model, reference model
+    AutoModelForSequenceClassification, # reward model, value model
     AutoTokenizer,
     HfArgumentParser,
 )
@@ -176,9 +176,32 @@ if __name__ == "__main__":
     )
     trainer.train()
 
-    # Save and push to hub
-    trainer.save_model(training_args.output_dir)
+    # Save final policy model only after training.
+    accelerator = trainer.accelerator
+    accelerator.wait_for_everyone()
+
+    model_to_save = getattr(trainer, "model_wrapped", trainer.model)
+    full_state_dict = accelerator.get_state_dict(model_to_save)
+
+    policy_state_dict = {
+        k.replace("policy.", "", 1): v
+        for k, v in full_state_dict.items()
+        if k.startswith("policy.")
+    }
+
+    policy_to_save = accelerator.unwrap_model(trainer.model).policy
+
+    if accelerator.is_main_process:
+        os.makedirs(training_args.output_dir, exist_ok=True)
+        policy_to_save.save_pretrained(
+            training_args.output_dir,
+            state_dict=policy_state_dict,
+            save_function=accelerator.save,
+            safe_serialization=True,
+        )
+        tokenizer.save_pretrained(training_args.output_dir)
+
+    accelerator.wait_for_everyone()
+
     if training_args.push_to_hub:
         trainer.push_to_hub(dataset_name=script_args.dataset_name)
-
-    trainer.generate_completions()

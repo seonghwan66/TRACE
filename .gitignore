@@ -143,3 +143,29 @@ checklink/cookies.txt
 nbs/wandb/
 examples/notebooks/wandb/
 wandb/
+
+# TRACE local artifacts
+outputs/
+examples/datasets/data/
+examples/scripts/ppo/old/
+
+# Archives
+*.zip
+
+# Experiment results
+*.jsonl
+
+# Model weights
+*.pt
+*.pth
+*.ckpt
+*.safetensors
+
+# Secrets
+.env
+*.key
+*.pem
+
+# Logs
+wandb/
+logs/
